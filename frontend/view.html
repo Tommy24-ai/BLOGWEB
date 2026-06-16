@@ -2,13 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ blog.title }}</title>
+    <title>Blog Post</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #0f0f13; color: #e2e8f0; min-height: 100vh; }
 
-        /* ── HEADER ── */
         header {
             position: sticky; top: 0; z-index: 100;
             background: rgba(15,15,19,0.85);
@@ -27,8 +26,6 @@
         }
         .back-btn:hover { color: #e2e8f0; border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
 
-        /* ── HERO IMAGE ── */
-        {% set img_list = blog.image_list() %}
         .hero-img {
             width: 100%; height: 460px; overflow: hidden;
             background: linear-gradient(135deg, #1e1b4b, #312e81);
@@ -42,7 +39,6 @@
             background: linear-gradient(to top, rgba(15,15,19,0.85) 0%, transparent 60%);
         }
 
-        /* ── ARTICLE ── */
         .article-wrap { max-width: 780px; margin: 0 auto; padding: 0 24px 80px; }
 
         .article-meta {
@@ -74,7 +70,6 @@
             white-space: pre-wrap;
         }
 
-        /* ── PHOTO GALLERY ── */
         .gallery-section { margin-top: 48px; }
         .gallery-section h3 {
             font-size: 0.85rem; font-weight: 700; text-transform: uppercase;
@@ -93,7 +88,6 @@
         }
         .gallery-grid img:hover { transform: scale(1.03); border-color: rgba(139,92,246,0.5); }
 
-        /* ── ACTION BUTTONS ── */
         .actions {
             display: flex; gap: 12px; margin-top: 48px;
             padding-top: 32px; border-top: 1px solid rgba(255,255,255,0.07);
@@ -111,11 +105,10 @@
             background: rgba(239,68,68,0.1); color: #f87171;
             border: 1px solid rgba(239,68,68,0.2);
             border-radius: 10px; font-size: 0.9rem; font-weight: 600;
-            text-decoration: none; transition: background 0.2s;
+            cursor: pointer; transition: background 0.2s;
         }
         .btn-delete:hover { background: rgba(239,68,68,0.2); }
 
-        /* ── LIGHTBOX ── */
         .lightbox {
             display: none; position: fixed; inset: 0; z-index: 999;
             background: rgba(0,0,0,0.92); backdrop-filter: blur(10px);
@@ -137,6 +130,8 @@
         .lightbox-prev { left: 20px; }
         .lightbox-next { right: 20px; }
         .lightbox-prev:hover, .lightbox-next:hover { background: rgba(255,255,255,0.2); }
+
+        .loading { text-align: center; padding: 120px 24px; color: #475569; }
     </style>
 </head>
 <body>
@@ -146,54 +141,10 @@
     <a href="/" class="back-btn">← Back to Posts</a>
 </header>
 
-<!-- Hero image (first photo) -->
-<div class="hero-img">
-    {% set img_list = blog.image_list() %}
-    {% if img_list %}
-        <img src="/uploads/{{ img_list[0] }}" alt="{{ blog.title }}">
-    {% else %}
-        <div class="placeholder">📝</div>
-    {% endif %}
-    <div class="hero-overlay"></div>
+<div id="content">
+    <div class="loading">Loading…</div>
 </div>
 
-<div class="article-wrap">
-
-    <!-- Meta -->
-    <div class="article-meta">
-        <span class="badge">{{ blog.category }}</span>
-        <span class="author-chip">✍️ {{ blog.author }}</span>
-        {% if img_list %}<span class="author-chip">🖼 {{ img_list|length }} photo{{ 's' if img_list|length > 1 }}</span>{% endif %}
-    </div>
-
-    <!-- Title -->
-    <h1 class="title">{{ blog.title }}</h1>
-    <div class="divider"></div>
-
-    <!-- Content -->
-    <div class="content">{{ blog.content }}</div>
-
-    <!-- Photo Gallery (all photos) -->
-    {% if img_list|length > 1 %}
-    <div class="gallery-section">
-        <h3>📸 Photos ({{ img_list|length }})</h3>
-        <div class="gallery-grid">
-            {% for img in img_list %}
-            <img src="/uploads/{{ img }}" alt="photo {{ loop.index }}" onclick="openLightbox({{ loop.index0 }})">
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Actions -->
-    <div class="actions">
-        <a href="/update/{{ blog.id }}" class="btn-edit">✏️ Edit Post</a>
-        <a href="/delete/{{ blog.id }}" class="btn-delete" onclick="return confirm('Delete this blog?');">🗑️ Delete</a>
-    </div>
-
-</div>
-
-<!-- Lightbox -->
 <div class="lightbox" id="lightbox" onclick="closeLightboxOutside(event)">
     <span class="lightbox-close" onclick="closeLightbox()">✕</span>
     <button class="lightbox-prev" onclick="changeImage(-1)">‹</button>
@@ -202,36 +153,88 @@
 </div>
 
 <script>
-    const images = [{% for img in img_list %}"{{ img }}"{% if not loop.last %},{% endif %}{% endfor %}];
-    let current = 0;
+let images = [];
+let current = 0;
 
-    function openLightbox(index) {
-        current = index;
-        document.getElementById('lightbox-img').src = '/uploads/' + images[current];
-        document.getElementById('lightbox').classList.add('active');
-        document.body.style.overflow = 'hidden';
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadBlog() {
+    const id = location.pathname.split('/').pop();
+    const res = await fetch(`/api/blogs/${id}`);
+    if (!res.ok) {
+        document.getElementById('content').innerHTML = '<div class="loading">Post not found.</div>';
+        return;
     }
+    const blog = await res.json();
+    images = blog.images || [];
+    document.title = blog.title;
 
-    function closeLightbox() {
-        document.getElementById('lightbox').classList.remove('active');
-        document.body.style.overflow = '';
-    }
+    const heroHtml = images.length
+        ? `<div class="hero-img"><img src="/api/image/${images[0]}" alt="${escHtml(blog.title)}"><div class="hero-overlay"></div></div>`
+        : `<div class="hero-img"><div class="placeholder">📝</div><div class="hero-overlay"></div></div>`;
 
-    function closeLightboxOutside(e) {
-        if (e.target === document.getElementById('lightbox')) closeLightbox();
-    }
+    const photoCountHtml = images.length
+        ? `<span class="author-chip">🖼 ${images.length} photo${images.length > 1 ? 's' : ''}</span>` : '';
 
-    function changeImage(dir) {
-        current = (current + dir + images.length) % images.length;
-        document.getElementById('lightbox-img').src = '/uploads/' + images[current];
-    }
+    const galleryHtml = images.length > 1 ? `
+        <div class="gallery-section">
+            <h3>📸 Photos (${images.length})</h3>
+            <div class="gallery-grid">
+                ${images.map((k, i) => `<img src="/api/image/${k}" alt="photo ${i+1}" onclick="openLightbox(${i})">`).join('')}
+            </div>
+        </div>` : '';
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeLightbox();
-        if (e.key === 'ArrowRight') changeImage(1);
-        if (e.key === 'ArrowLeft') changeImage(-1);
-    });
+    document.getElementById('content').innerHTML = `
+        ${heroHtml}
+        <div class="article-wrap">
+            <div class="article-meta">
+                <span class="badge">${escHtml(blog.category)}</span>
+                <span class="author-chip">✍️ ${escHtml(blog.author)}</span>
+                ${photoCountHtml}
+            </div>
+            <h1 class="title">${escHtml(blog.title)}</h1>
+            <div class="divider"></div>
+            <div class="content">${escHtml(blog.content)}</div>
+            ${galleryHtml}
+            <div class="actions">
+                <a href="/update/${blog.id}" class="btn-edit">✏️ Edit Post</a>
+                <button class="btn-delete" onclick="deleteBlog(${blog.id})">🗑️ Delete</button>
+            </div>
+        </div>`;
+}
+
+async function deleteBlog(id) {
+    if (!confirm('Delete this blog?')) return;
+    await fetch(`/api/blogs/${id}`, { method: 'DELETE' });
+    window.location.href = '/';
+}
+
+function openLightbox(index) {
+    current = index;
+    document.getElementById('lightbox-img').src = '/api/image/' + images[current];
+    document.getElementById('lightbox').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('active');
+    document.body.style.overflow = '';
+}
+function closeLightboxOutside(e) {
+    if (e.target === document.getElementById('lightbox')) closeLightbox();
+}
+function changeImage(dir) {
+    current = (current + dir + images.length) % images.length;
+    document.getElementById('lightbox-img').src = '/api/image/' + images[current];
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowRight') changeImage(1);
+    if (e.key === 'ArrowLeft') changeImage(-1);
+});
+
+loadBlog();
 </script>
-
 </body>
 </html>

@@ -24,7 +24,6 @@
         .back-btn:hover { color: #e2e8f0; border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.04); }
 
         .wrapper { max-width: 680px; margin: 40px auto; padding: 0 24px 80px; }
-
         .page-title { font-size: 1.8rem; font-weight: 800; margin-bottom: 28px; color: #f1f5f9; }
 
         .card {
@@ -72,6 +71,9 @@
             transition: transform 0.2s, box-shadow 0.2s;
         }
         .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(79,70,229,0.45); }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .error { color: #f87171; font-size: 0.88rem; margin-top: 12px; }
     </style>
 </head>
 <body>
@@ -84,18 +86,15 @@
 <div class="wrapper">
     <h1 class="page-title">✍️ New Blog Post</h1>
     <div class="card">
-        <form action="/create" method="post" enctype="multipart/form-data">
-
+        <form id="createForm">
             <div class="field">
                 <label>Title</label>
                 <input type="text" name="title" placeholder="Give your post a great title..." required>
             </div>
-
             <div class="field">
                 <label>Author</label>
                 <input type="text" name="author" placeholder="Your name..." required>
             </div>
-
             <div class="field">
                 <label>Category</label>
                 <select name="category" required>
@@ -108,7 +107,6 @@
                     <option value="Other">Other</option>
                 </select>
             </div>
-
             <div class="field">
                 <label>Photos (optional)</label>
                 <div class="upload-box" onclick="document.getElementById('imgInput').click()">
@@ -119,13 +117,12 @@
                 </div>
                 <div class="preview-grid" id="previewGrid"></div>
             </div>
-
             <div class="field">
                 <label>Content</label>
                 <textarea name="content" placeholder="Write your blog post here..." required></textarea>
             </div>
-
-            <button type="submit" class="btn-submit">🚀 Publish Post</button>
+            <button type="submit" class="btn-submit" id="submitBtn">🚀 Publish Post</button>
+            <div class="error" id="error"></div>
         </form>
     </div>
 </div>
@@ -140,6 +137,29 @@
             grid.appendChild(img);
         }
     }
+
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        const errEl = document.getElementById('error');
+        btn.disabled = true;
+        btn.textContent = 'Publishing…';
+        errEl.textContent = '';
+
+        try {
+            const formData = new FormData(e.target);
+            const res = await fetch('/api/blogs', { method: 'POST', body: formData });
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || 'Failed to publish');
+            }
+            window.location.href = '/';
+        } catch (err) {
+            errEl.textContent = err.message;
+            btn.disabled = false;
+            btn.textContent = '🚀 Publish Post';
+        }
+    });
 </script>
 </body>
 </html>

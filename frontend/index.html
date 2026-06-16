@@ -2,13 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Blog</title>
+    <title>BlogSpace</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #0f0f13; color: #e2e8f0; min-height: 100vh; }
 
-        /* ── HEADER ── */
         header {
             position: sticky; top: 0; z-index: 100;
             background: rgba(15,15,19,0.85);
@@ -27,7 +26,6 @@
         }
         .btn-new:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(79,70,229,0.5); }
 
-        /* ── HERO ── */
         .hero {
             text-align: center; padding: 72px 24px 48px;
             background: radial-gradient(ellipse at top, rgba(79,70,229,0.15) 0%, transparent 70%);
@@ -35,7 +33,6 @@
         .hero h2 { font-size: 2.8rem; font-weight: 800; line-height: 1.2; background: linear-gradient(135deg, #fff 30%, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .hero p { color: #64748b; font-size: 1rem; margin-top: 12px; }
 
-        /* ── GRID ── */
         .grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -43,7 +40,6 @@
             margin: 0 auto 60px; padding: 0 24px;
         }
 
-        /* ── CARD ── */
         .card {
             background: #16161d;
             border: 1px solid rgba(255,255,255,0.07);
@@ -109,6 +105,8 @@
         .empty span { font-size: 64px; display: block; margin-bottom: 16px; }
         .empty p { font-size: 1rem; }
         .empty a { color: #818cf8; text-decoration: none; font-weight: 600; }
+
+        .loading { grid-column: 1/-1; text-align: center; padding: 90px 0; color: #475569; font-size: 1rem; }
     </style>
 </head>
 <body>
@@ -123,40 +121,64 @@
     <p>Read, write, and share ideas with the world</p>
 </div>
 
-<div class="grid">
-    {% for blog in blogs %}
-    {% set img_list = blog.image_list() %}
-    <div class="card">
-        {% if img_list %}
-        <div class="img-gallery">
-            {% for img in img_list[:3] %}<img src="/uploads/{{ img }}" alt="">{% endfor %}
-        </div>
-        {% else %}
-        <div class="no-img">📝</div>
-        {% endif %}
-
-        <div class="card-body">
-            <div class="meta">
-                <span class="badge">{{ blog.category }}</span>
-                {% if img_list %}<span class="img-count">🖼 {{ img_list|length }}</span>{% endif %}
-            </div>
-            <div class="card-title">{{ blog.title }}</div>
-            <div class="card-author">✍️ {{ blog.author }}</div>
-            <div class="card-content">{{ blog.content }}</div>
-            <div class="card-actions">
-                <a href="/blog/{{ blog.id }}" class="btn-read">📖 Read</a>
-                <a href="/update/{{ blog.id }}" class="btn-edit">✏️</a>
-                <a href="/delete/{{ blog.id }}" class="btn-delete" onclick="return confirm('Delete this blog?');">🗑️</a>
-            </div>
-        </div>
-    </div>
-    {% else %}
-    <div class="empty">
-        <span>📭</span>
-        <p>No posts yet. <a href="/create">Write the first one!</a></p>
-    </div>
-    {% endfor %}
+<div class="grid" id="grid">
+    <div class="loading">Loading posts…</div>
 </div>
 
+<script>
+async function loadBlogs() {
+    const grid = document.getElementById('grid');
+    try {
+        const res = await fetch('/api/blogs');
+        const blogs = await res.json();
+
+        if (!blogs.length) {
+            grid.innerHTML = `<div class="empty"><span>📭</span><p>No posts yet. <a href="/create">Write the first one!</a></p></div>`;
+            return;
+        }
+
+        grid.innerHTML = blogs.map(blog => {
+            const imgs = blog.images || [];
+            const imgHtml = imgs.length
+                ? `<div class="img-gallery">${imgs.slice(0,3).map(k => `<img src="/api/image/${k}" alt="">`).join('')}</div>`
+                : `<div class="no-img">📝</div>`;
+            const countHtml = imgs.length ? `<span class="img-count">🖼 ${imgs.length}</span>` : '';
+            return `
+            <div class="card">
+                ${imgHtml}
+                <div class="card-body">
+                    <div class="meta">
+                        <span class="badge">${escHtml(blog.category)}</span>
+                        ${countHtml}
+                    </div>
+                    <div class="card-title">${escHtml(blog.title)}</div>
+                    <div class="card-author">✍️ ${escHtml(blog.author)}</div>
+                    <div class="card-content">${escHtml(blog.content)}</div>
+                    <div class="card-actions">
+                        <a href="/blog/${blog.id}" class="btn-read">📖 Read</a>
+                        <a href="/update/${blog.id}" class="btn-edit">✏️</a>
+                        <button class="btn-delete" onclick="deleteBlog(${blog.id}, this)">🗑️</button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    } catch {
+        grid.innerHTML = `<div class="empty"><span>⚠️</span><p>Failed to load posts.</p></div>`;
+    }
+}
+
+async function deleteBlog(id, btn) {
+    if (!confirm('Delete this blog?')) return;
+    btn.disabled = true;
+    await fetch(`/api/blogs/${id}`, { method: 'DELETE' });
+    loadBlogs();
+}
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadBlogs();
+</script>
 </body>
 </html>

@@ -1,0 +1,12 @@
+[build]
+  publish = "frontend"
+
+[[redirects]]
+  from = "/blog/*"
+  to = "/view.html"
+  status = 200
+
+[[redirects]]
+  from = "/update/*"
+  to = "/update.html"
+  status = 200
